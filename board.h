@@ -3,6 +3,7 @@
 #include"titanium/window.h"
 #include<SDL_timer.h>
 #include<random>
+#include<array>
 #define tile_size 64
 #define tile_at(x) x * tile_size
 #define tile_sub(x) x -= tile_size
@@ -84,21 +85,20 @@ namespace ShonetsuSIX
 	{
 		std::vector<std::shared_ptr<tile>> _path;
 		std::vector<std::shared_ptr<player>> _players;
-		size_t _length{ 4 };
+		size_t _length{ 12 * 4 };
 		const titanium::v2 tile_center{ tile_size / 4,tile_size / 4 };
 		void new_path()
 		{
 			_path.reserve(_length);
 			_path.clear();
 			_path.emplace_back(new tile(this, titanium::v2{ tile_at(7), tile_at(5) }, tile::right, 1));
+			std::array < size_t, 12> flow_ar{ 1, 0, 1, 2, 1, 2, 3, 2, 3, 0, 3 };
 			for (size_t i = 1; i < _length; i++)
 			{
 				tile* back = _path[i - 1].get();
 				titanium::v2 new_position = back->get_position();
 
-				size_t flow{ (i / (_length / 4u) % 2 % 4) };
-				SDL_Log("flow: %d, i = %d", flow, i);
-				tile::flow new_dir{ static_cast<tile::flow>(flow) };
+				tile::flow new_dir{ static_cast<tile::flow>(flow_ar[i / 4]) };
 
 				if (new_dir == tile::right)
 				{
@@ -154,10 +154,10 @@ namespace ShonetsuSIX
 			int counter = 1;
 			for (auto t : _path)
 			{
-				Uint8 shade = abs(sin((SDL_GetTicks() / 2012.f) + (counter * 1000))) * 127 + 64;
+				Uint8 shade = abs(sin((SDL_GetTicks() / 512.f) * counter * 0.01f)) * 127 + 32;
 				const bool is_target = _players[0]->in_progress() && _players[0]->get_position_on_board() == counter;
 
-				SDL_Color color{ shade, shade - (is_target ? 64 : 0),shade };
+				SDL_Color color{ shade, shade - (is_target ? 32 : 0),shade - (is_target ? 32 : 0) };
 				app.draw_rect(*t, color);
 				app.draw_text(t->label);
 				counter++;
@@ -185,7 +185,7 @@ namespace ShonetsuSIX
 
 					}
 					else
-						time += abs(cos(SDL_GetTicks() / 64)) * 0.0160f;
+						time += abs(cos(SDL_GetTicks() / 80)) * 0.0080f;
 
 					titanium::v2 now = _path[round]->get_absolute_position();
 					titanium::v2 next = _path[round >= _length - 1 ? 0 : round + 1]->get_absolute_position();
