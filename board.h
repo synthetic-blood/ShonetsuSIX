@@ -13,11 +13,13 @@ namespace ShonetsuSIX
 	namespace assets
 	{
 		titanium::font bismark_font("bismark");
+		titanium::texture chess{ "sprite.png" };
+		titanium::texture pawn{ "white statue.png" };
 	}
 
 	struct tile :titanium::object
 	{
-		enum flow
+		enum segment
 		{
 			right,
 			up,
@@ -25,14 +27,14 @@ namespace ShonetsuSIX
 			down
 		};
 
-		flow my_flow;
+		segment my_segment;
 		int index;
 		titanium::text label;
 		tile* back{ nullptr };
 
-		tile(object* parent, titanium::v2 new_position, flow new_flow, int new_index, tile* back_ptr = nullptr) :
-			object(new_position, { 64,64 }),
-			my_flow(new_flow),
+		tile(object* parent, titanium::v2<> new_position, segment new_flow, int new_index, tile* back_ptr = nullptr) :
+			object({ 0,0 }, { 4.f,4.f }),
+			my_segment(new_flow),
 			index(new_index),
 			label(assets::bismark_font, { 0,0 }),
 			back(back_ptr)
@@ -41,6 +43,28 @@ namespace ShonetsuSIX
 				this->set_parent(parent);
 			label.set_parent(this);
 			label.set_text(std::to_string(index));
+			set_texture(assets::chess);
+			if (back != nullptr)
+			{
+				titanium::v2<float> pivot_segment;
+				if (my_segment == tile::right)
+				{
+					pivot_segment = { 1.f,0.f };
+				}
+				else if (my_segment == tile::down)
+				{
+					pivot_segment = { 0.f,1.f };
+				}
+				else if (my_segment == tile::left)
+				{
+					pivot_segment = { -1.f,0.f };
+				}
+				else if (my_segment == tile::up)
+				{
+					pivot_segment = { 0.f,-1.f };
+				}
+				place_at(*back, pivot_segment);
+			}
 		}
 	};
 
@@ -50,7 +74,7 @@ namespace ShonetsuSIX
 		size_t _position_on_board{ 1 };
 	public:
 		player(object* parent) :
-			object({ 0,0 }, { tile_size / 2,tile_size / 2 })
+			object({ 0,0 }, { 1.5f,1.5f }, { .5f, .5f })
 		{
 			set_parent(parent);
 		}
@@ -86,7 +110,7 @@ namespace ShonetsuSIX
 		std::vector<std::shared_ptr<tile>> _path;
 		std::vector<std::shared_ptr<player>> _players;
 		size_t _length{ 12 * 4 };
-		const titanium::v2 tile_center{ tile_size / 4,tile_size / 4 };
+
 		void new_path()
 		{
 			_path.reserve(_length);
@@ -96,37 +120,21 @@ namespace ShonetsuSIX
 			for (size_t i = 1; i < _length; i++)
 			{
 				tile* back = _path[i - 1].get();
-				titanium::v2 new_position = back->get_position();
+				titanium::v2 new_position{ back->get_position() };
 
-				tile::flow new_dir{ static_cast<tile::flow>(flow_ar[i / 4]) };
-
-				if (new_dir == tile::right)
-				{
-					tile_add(new_position.x);
-				}
-				else if (new_dir == tile::down)
-				{
-					tile_add(new_position.y);
-				}
-				else if (new_dir == tile::left)
-				{
-					tile_sub(new_position.x);
-				}
-				else if (new_dir == tile::up)
-				{
-					tile_sub(new_position.y);
-				}
-
-				_path.emplace_back(new tile(this, new_position, new_dir, i + 1, back));
+				_path.emplace_back(new tile(this, new_position, static_cast<tile::segment>(flow_ar[i / 4]), i + 1, back));
 			}
 		}
 	public:
-		board()
+		board(titanium::window app)
 		{
-			new_path();
-
+			app.load_texture(assets::pawn);
+			app.load_texture(assets::chess);
 			_players.emplace_back(new player(this));// create player
-			_players[0]->set_position(_path[0]->get_absolute_position() + tile_center);
+
+			new_path();
+			_players[0]->set_position(_path[0]->get_absolute_position());
+			_players[0]->set_texture(assets::pawn);
 		}
 		void draw(titanium::window& app)
 		{
@@ -154,12 +162,10 @@ namespace ShonetsuSIX
 			int counter = 1;
 			for (auto t : _path)
 			{
-				Uint8 shade = abs(sin((SDL_GetTicks() / 512.f) * counter * 0.01f)) * 127 + 32;
-				const bool is_target = _players[0]->in_progress() && _players[0]->get_position_on_board() == counter;
+				app.draw_rect(*t, SDL_Color{ 127,64,255 });
 
-				SDL_Color color{ shade, shade - (is_target ? 32 : 0),shade - (is_target ? 32 : 0) };
-				app.draw_rect(*t, color);
 				app.draw_text(t->label);
+				app.draw_texture(*t);
 				counter++;
 			}
 			for (auto player : _players)
@@ -182,7 +188,6 @@ namespace ShonetsuSIX
 						}
 						time = 0;
 						round = player->get_step() - 1;
-
 					}
 					else
 						time += abs(cos(SDL_GetTicks() / 80)) * 0.0080f;
@@ -194,9 +199,9 @@ namespace ShonetsuSIX
 						(int)std::lerp(now.x,
 							next.x, time),
 						 (int)std::lerp(now.y,
-							next.y, time) } + tile_center);
+							next.y, time) });
 				}
-				app.draw_rect(*player, { 0,0,0 });
+				app.draw_texture(*player);
 			}
 		}
 	};
