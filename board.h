@@ -33,17 +33,20 @@ namespace ShonetsuSIX
 		tile* back{ nullptr };
 
 		tile(object* parent, titanium::v2<> new_position, segment new_flow, int new_index, tile* back_ptr = nullptr) :
-			object({ 0,0 }, { 4.f,4.f }),
+			object({ 0,0 }, { 6.f,6.f }),
 			my_segment(new_flow),
 			index(new_index),
 			label(assets::bismark_font, { 0,0 }),
 			back(back_ptr)
 		{
-			if (index != 0)
-				this->set_parent(parent);
-			label.set_parent(this);
+
+			this->set_texture(assets::chess);
+			this->set_parent(parent);
+
+			label.set_pivot({ .5f, .5f });
 			label.set_text(std::to_string(index));
-			set_texture(assets::chess);
+			label.set_parent(this);
+
 			if (back != nullptr)
 			{
 				titanium::v2<float> pivot_segment;
@@ -74,7 +77,7 @@ namespace ShonetsuSIX
 		size_t _position_on_board{ 1 };
 	public:
 		player(object* parent) :
-			object({ 0,0 }, { 1.5f,1.5f }, { .5f, .5f })
+			object({ 0,0 }, { 2.0f,2.0f }, { .5f,.5f })
 		{
 			set_parent(parent);
 		}
@@ -109,7 +112,7 @@ namespace ShonetsuSIX
 	{
 		std::vector<std::shared_ptr<tile>> _path;
 		std::vector<std::shared_ptr<player>> _players;
-		size_t _length{ 12 * 4 };
+		size_t _length{ 12 * 8 };
 
 		void new_path()
 		{
@@ -122,9 +125,12 @@ namespace ShonetsuSIX
 				tile* back = _path[i - 1].get();
 				titanium::v2 new_position{ back->get_position() };
 
-				_path.emplace_back(new tile(this, new_position, static_cast<tile::segment>(flow_ar[i / 4]), i + 1, back));
+				_path.emplace_back(new tile(this, new_position, static_cast<tile::segment>(flow_ar[i / 8]), i + 1, back));
 			}
 		}
+
+		titanium::text score{ assets::bismark_font,{0,0} };
+
 	public:
 		board(titanium::window app)
 		{
@@ -135,9 +141,12 @@ namespace ShonetsuSIX
 			new_path();
 			_players[0]->set_position(_path[0]->get_absolute_position());
 			_players[0]->set_texture(assets::pawn);
+			_players[0]->place_at(*_path[0], { .5f,.5f });
+
 		}
 		void draw(titanium::window& app)
 		{
+
 			static int path_position{ 1 };
 
 			if (app.key_pressed(SDL_SCANCODE_F5))
@@ -162,18 +171,19 @@ namespace ShonetsuSIX
 			int counter = 1;
 			for (auto t : _path)
 			{
-				app.draw_rect(*t, SDL_Color{ 127,64,255 });
-
-				app.draw_text(t->label);
 				app.draw_texture(*t);
+				app.draw_text(t->label);
 				counter++;
 			}
+
 			for (auto player : _players)
 			{
 				static size_t round = 0;
 				static float time = 0.f;
 				static titanium::v2 now;
 				static titanium::v2 next;
+
+				//run player role
 				if (player->in_progress())
 				{
 					if (time >= 1.f)
@@ -188,21 +198,22 @@ namespace ShonetsuSIX
 						}
 						time = 0;
 						round = player->get_step() - 1;
+						std::stringstream formated;
+
+						std::ostringstream formated_score;
+						formated_score << "score: " << round;
+						score.set_text(formated_score.str());
 					}
 					else
-						time += abs(cos(SDL_GetTicks() / 80)) * 0.0080f;
-
-					titanium::v2 now = _path[round]->get_absolute_position();
-					titanium::v2 next = _path[round >= _length - 1 ? 0 : round + 1]->get_absolute_position();
-
-					player->set_position(titanium::v2{
-						(int)std::lerp(now.x,
-							next.x, time),
-						 (int)std::lerp(now.y,
-							next.y, time) });
+					{
+						player->place_at(*_path[round >= _length - 1 ? 0 : round + 1], { .5f,.5f }, _path[round]->get_absolute_position(), time);
+						time += abs(sin(SDL_GetTicks() / 160)) * 0.0080f;
+					}
 				}
 				app.draw_texture(*player);
+
 			}
+			app.draw_text(score);
 		}
 	};
 }
